@@ -46,9 +46,9 @@ function parseDataUrl(value) {
   return { mime: match[1], bytes, base64: match[2] };
 }
 function dimensions(format) {
-  if (format === '4:5') return { width: 512, height: 640 };
-  if (format === '16:9') return { width: 768, height: 432 };
-  return { width: 512, height: 512 };
+  if (format === '4:5') return { width: 1080, height: 1350 };
+  if (format === '16:9') return { width: 1920, height: 1080 };
+  return { width: 1440, height: 1440 };
 }
 async function toBase64(input) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(await new Response(input).arrayBuffer());
@@ -81,22 +81,26 @@ export default {
       const { count, format, scenes, customScene, image } = body || {};
       if (![3,6,9].includes(count)) return json({ error: 'Quantidade deve ser 3, 6 ou 9.' }, 400, origin);
       if (!allowedFormats.has(format)) return json({ error: 'Formato inválido.' }, 400, origin);
-      if (!Array.isArray(scenes) || scenes.length < 1 || scenes.length > 8 || scenes.some(scene => !allowedScenes.has(scene))) {
-        return json({ error: 'Selecione de 1 a 8 cenários permitidos.' }, 400, origin);
+      const customDescription = typeof customScene === 'string' ? customScene.trim() : '';
+      if (customDescription.length > 160) return json({ error: 'O cenário personalizado deve ter no máximo 160 caracteres.' }, 400, origin);
+      if (!Array.isArray(scenes) || scenes.length > 16 || scenes.some(scene => !allowedScenes.has(scene)) || (scenes.length === 0 && !customDescription)) {
+        return json({ error: 'Selecione ao menos um cenário ou descreva um cenário personalizado.' }, 400, origin);
       }
       if (typeof image !== 'string') return json({ error: 'Envie a foto original.' }, 400, origin);
       const source = parseDataUrl(image);
       if (!source) return json({ error: 'Imagem inválida ou maior que 10 MB. Use JPG, PNG ou WEBP.' }, 400, origin);
       const { width, height } = dimensions(format);
+      const sceneChoices = scenes.map(name => ({ name, description: scenePrompts[name] }));
+      if (customDescription) sceneChoices.push({ name: 'Personalizado', description: customDescription });
       const images = [];
       let failedStage = 'preparing_generation';
       try {
         for (let i = 0; i < count; i++) {
           failedStage = `model_request_${i + 1}_of_${count}`;
-          const scene = scenes[i % scenes.length];
+          const scene = sceneChoices[i % sceneChoices.length];
 
           const modelInput = new FormData();
-          modelInput.append('prompt', `Use the product shown in image 0 as the exact reference. Preserve its identity, silhouette, proportions, colors, materials, printed details and every component. Do not redesign, replace, add or remove product parts. Change only the surrounding environment: place the same product naturally in ${scenePrompts[scene]}. Professional commercial product photography, realistic perspective, natural contact shadows, crisp product details, polished advertising composition. The product remains the clear central subject.`);
+          modelInput.append('prompt', `Use the product shown in image 0 as the exact reference. Preserve its identity, silhouette, proportions, colors, materials, printed details and every component. Do not redesign, replace, add or remove product parts. Change only the surrounding environment: ${scene.description}. Professional commercial product photography, premium art direction, realistic perspective, natural contact shadows, crisp product details, balanced composition, accurate materials, realistic lighting, high detail. The product remains the clear central subject and must be fully visible, not cropped.`);
           modelInput.append('input_image_0', new Blob([source.bytes], { type: source.mime }), 'reference-image');
           modelInput.append('width', String(width));
           modelInput.append('height', String(height));
