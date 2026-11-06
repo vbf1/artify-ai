@@ -80,8 +80,10 @@ export default {
       if (!source) return json({ error: 'Imagem inválida ou maior que 10 MB. Use JPG, PNG ou WEBP.' }, 400, origin);
       const { width, height } = dimensions(format);
       const images = [];
+      let failedStage = 'preparing_generation';
       try {
         for (let i = 0; i < count; i++) {
+          failedStage = `model_request_${i + 1}_of_${count}`;
           const scene = scenes[i % scenes.length];
           const prompt = `Professional commercial product photograph. Keep the exact same main product from the input photo: same shape, proportions, colors, materials, details and components. Do not redesign, replace, add or remove any part of the product. Place it naturally in ${scenePrompts[scene]}. Realistic photography, coherent perspective, natural shadows, crisp product details, polished advertising composition. The product must remain the clear central subject.`;
           const output = await env.AI.run(MODEL, {
@@ -95,18 +97,25 @@ export default {
             guidance: 7.5,
             seed: Math.floor(Math.random() * 2147483647)
           });
+          failedStage = `reading_model_output_${i + 1}_of_${count}`;
           const base64 = await toBase64(output);
           images.push({ scene, mime: 'image/png', dataUrl: `data:image/png;base64,${base64}` });
         }
         return json({ success: true, provider: 'Cloudflare Workers AI', images }, 200, origin);
       } catch (error) {
-        const message = String(error?.message || '');
-        const quota = /quota|limit|neurons|billing|exceeded|rate/i.test(message);
+        let message = '';
+        try {
+          if (typeof error === 'string') message = error;
+          else if (error?.message) message = String(error.message);
+          else message = JSON.stringify(error);
+        } catch { message = String(error); }
+        if (!message || message === '{}') message = 'A plataforma não forneceu uma mensagem de erro. Verifique os logs do Worker.';
+        const quota = /quota|limit|neurons|billing|exceeded|rate|429|resource exhausted/i.test(message);
         return json({
           error: quota
             ? 'O limite gratuito ou a capacidade da IA foi atingido. Tente novamente após a renovação da cota.'
             : 'A geração falhou nesta tentativa. Nenhuma imagem foi salva como resultado. Tente novamente.',
-          detail: message.slice(0, 240)
+          detail: `${failedStage}: ${message}`.slice(0, 500)
         }, quota ? 429 : 502, origin);
       }
     }
