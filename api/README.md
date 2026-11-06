@@ -24,3 +24,15 @@ O binding `AI` usa `@cf/runwayml/stable-diffusion-v1-5-img2img`. A rota `POST /g
 O modelo img2img altera a imagem inteira e não garante preservação perfeita do produto. O prompt e a intensidade baixa tentam manter forma, cores e componentes, mas é obrigatório revisar cada resultado. O modelo está em beta e a disponibilidade pode variar.
 
 A API aceita JPG, PNG e WEBP até 10 MB. Não coloque tokens Cloudflare no frontend. O Worker usa binding de IA e não precisa expor credenciais de conta no navegador.
+
+## Publicação automatizada pelo GitHub
+
+Configure os seguintes **Secrets** no repositório (Settings → Secrets and variables → Actions):
+- `CLOUDFLARE_API_TOKEN`: token restrito à conta, com permissões para editar Workers Scripts e acessar Workers AI.
+- `CLOUDFLARE_ACCOUNT_ID`: identificador da conta Cloudflare.
+
+Depois, execute manualmente o workflow **Deploy Artify AI API** na aba Actions.
+
+Adicione também a variável de repositório `VITE_API_BASE_URL` com a URL HTTPS do Worker (Settings → Secrets and variables → Actions → Variables). O workflow do GitHub Pages injeta essa variável no build web.
+
+Não use tokens com permissão global nem compartilhe esses valores no chat.
