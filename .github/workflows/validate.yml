@@ -1,4 +1,8 @@
 name: Validate Artify AI
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -51,3 +55,13 @@ jobs:
           echo "$headers"
           echo "$headers" | grep -qi 'access-control-allow-origin: https://vbf1.github.io'
           echo "$headers" | grep -qi 'access-control-allow-methods:.*POST'
+
+      - name: Check API input validation without consuming AI quota
+        env:
+          API_URL: https://artify-ai-api.victorbatistafp.workers.dev
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --output /tmp/invalid.json --write-out '%{http_code}' --request POST "$API_URL/generate" --header 'Content-Type: application/json' --data '{"count":2,"format":"4:5","scenes":["Parque"],"image":"invalid"}')"
+          cat /tmp/invalid.json
+          test "$code" = "400"
+          grep -q 'Quantidade deve ser 3, 6 ou 9' /tmp/invalid.json
