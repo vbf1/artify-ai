@@ -143,7 +143,7 @@ export default function App() {
         <div className="field"><label>Cenários ({selectedScenes.length} selecionados)</label><div className="scene-grid">{scenes.map(scene => <label className="check" key={scene}><input type="checkbox" checked={selectedScenes.includes(scene)} onChange={() => toggleScene(scene)} /><span>{scene}</span></label>)}</div></div>
         <div className="field custom-scene-field"><label htmlFor="custom-scene">Seu próprio cenário</label><textarea id="custom-scene" rows="3" maxLength="160" placeholder="Ex.: brinquedo em uma festa no tema safari, com decoração verde e animais..." value={customScene} onChange={event => setCustomScene(event.target.value)} /><small>{customScene.length}/160 caracteres · será usado junto aos cenários selecionados</small></div>
         <button className="generate" disabled={!file || (selectedScenes.length===0 && !customScene.trim()) || generating} onClick={generateImages}>{generating ? 'Gerando imagens...' : `✦ Gerar ${count} imagens`}</button>
-        <p className="notice">Saída em alta resolução: até 1920 × 1080 no formato paisagem. A IA pode alterar pequenos detalhes do produto; confira antes de publicar. A cota gratuita pode limitar as gerações.</p>
+        <p className="notice">Saída em alta resolução: {format === '16:9' ? '1920 × 1080' : format === '4:5' ? '1080 × 1350' : '1440 × 1440'} px. A IA pode alterar pequenos detalhes do produto; confira antes de publicar. A cota gratuita pode limitar as gerações.</p>
         <button className="api-check" onClick={checkApi}>Verificar conexão com a API</button><p className="status" role="status">{status}</p>
       </div>
     </section>
