@@ -5,6 +5,60 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+
+const RESULTS_DB_NAME = 'artify-ai-local';
+const RESULTS_STORE = 'generated-results';
+const RESULTS_KEY = 'latest';
+
+function openResultsDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('Armazenamento local indisponível.'));
+    const request = indexedDB.open(RESULTS_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(RESULTS_STORE)) request.result.createObjectStore(RESULTS_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Não foi possível abrir o armazenamento local.'));
+  });
+}
+
+async function saveResultsLocally(images) {
+  const db = await openResultsDb();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(RESULTS_STORE, 'readwrite');
+      tx.objectStore(RESULTS_STORE).put({ images, savedAt: new Date().toISOString() }, RESULTS_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error('Falha ao salvar as imagens.'));
+      tx.onabort = () => reject(tx.error || new Error('O salvamento foi interrompido.'));
+    });
+  } finally { db.close(); }
+}
+
+async function loadResultsLocally() {
+  const db = await openResultsDb();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(RESULTS_STORE, 'readonly');
+      const request = tx.objectStore(RESULTS_STORE).get(RESULTS_KEY);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error('Falha ao recuperar as imagens.'));
+    });
+  } finally { db.close(); }
+}
+
+async function clearResultsLocally() {
+  const db = await openResultsDb();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(RESULTS_STORE, 'readwrite');
+      tx.objectStore(RESULTS_STORE).delete(RESULTS_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error('Falha ao limpar o histórico.'));
+    });
+  } finally { db.close(); }
+}
+
 function fileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -47,6 +101,19 @@ export default function App() {
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState([]);
   const [apiReady, setApiReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    loadResultsLocally().then(saved => {
+      if (active && saved?.images?.length) {
+        setResults(saved.images);
+        setStatus('Suas imagens anteriores foram recuperadas deste dispositivo.');
+      }
+    }).catch(() => {
+      if (active) setStatus('O armazenamento local não está disponível. Baixe as imagens para mantê-las seguras.');
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!file) { setPreview(''); return undefined; }
@@ -123,7 +190,12 @@ export default function App() {
         throw new Error('A IA não devolveu todas as imagens esperadas. Tente novamente.');
       }
       setResults(data.images);
-      setStatus(`${data.images.length} imagens geradas pela IA. Confira cada resultado antes de usar.`);
+      try {
+        await saveResultsLocally(data.images);
+        setStatus(`${data.images.length} imagens geradas e salvas neste dispositivo. Você pode sair do site e voltar depois.`);
+      } catch {
+        setStatus(`${data.images.length} imagens geradas, mas não foi possível salvá-las neste dispositivo. Baixe-as antes de sair.`);
+      }
     } catch (error) {
       setStatus(error.message || 'Falha na geração. Tente novamente.');
     } finally { setGenerating(false); }
@@ -147,7 +219,7 @@ export default function App() {
         <button className="api-check" onClick={checkApi}>Verificar conexão com a API</button><p className="status" role="status">{status}</p>
       </div>
     </section>
-    {results.length > 0 && <section className="results"><div className="results-heading"><h2>Suas imagens</h2><span>{results.length} resultados</span></div><div className={`results-grid format-${format.replace(':','-')}`}>{results.map((item,index) => <article className="result-card" key={index}><button className="image-preview" onClick={() => setExpandedImage(item)} aria-label={`Ampliar imagem ${index+1}`}><img src={item.dataUrl} alt={`Imagem gerada para o cenário ${item.scene}`} loading="lazy" /></button><div className="result-meta"><div><strong>{item.scene}</strong><small>{item.width} × {item.height} px</small></div><a href={item.dataUrl} download={`artify-ai-${index+1}.png`}>Baixar imagem</a></div></article>)}</div></section>}
+    {results.length > 0 && <section className="results"><div className="results-heading"><h2>Suas imagens</h2><span>{results.length} resultados · salvos neste dispositivo</span><button className="text-button" onClick={async () => { setResults([]); setExpandedImage(null); try { await clearResultsLocally(); setStatus("Imagens removidas deste dispositivo."); } catch { setStatus("Não foi possível limpar o armazenamento local."); } }}>Limpar imagens</button></div><div className={`results-grid format-${format.replace(':','-')}`}>{results.map((item,index) => <article className="result-card" key={index}><button className="image-preview" onClick={() => setExpandedImage(item)} aria-label={`Ampliar imagem ${index+1}`}><img src={item.dataUrl} alt={`Imagem gerada para o cenário ${item.scene}`} loading="lazy" /></button><div className="result-meta"><div><strong>{item.scene}</strong><small>{item.width} × {item.height} px</small></div><a href={item.dataUrl} download={`artify-ai-${index+1}.png`}>Baixar imagem</a></div></article>)}</div></section>}
     {expandedImage && <div className="image-lightbox" role="dialog" aria-modal="true" aria-label="Visualização ampliada" onClick={() => setExpandedImage(null)}><button className="lightbox-close" onClick={() => setExpandedImage(null)} aria-label="Fechar">×</button><div className="lightbox-content" onClick={event => event.stopPropagation()}><img src={expandedImage.dataUrl} alt={`Imagem ampliada: ${expandedImage.scene}`} /><div><strong>{expandedImage.scene}</strong><span>{expandedImage.width} × {expandedImage.height} px</span><a href={expandedImage.dataUrl} download="artify-ai-imagem.png">Baixar imagem original</a></div></div></div>}
     <footer>Artify AI · Criação visual para suas ideias</footer>
   </main>;
