@@ -48,7 +48,7 @@ class ApiService {
         'image': dataUrl,
         'count': count,
         'format': format,
-        'scenes': scenes,
+        'scenes': scenes,\n        'customScene': customScene,
       }),
     ).timeout(const Duration(minutes: 8));
     final data = jsonDecode(response.body) as Map<String, dynamic>;
