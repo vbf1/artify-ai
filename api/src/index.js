@@ -2,7 +2,7 @@ const allowedScenes = new Set(['Festa infantil','Escola','Parque','Espaço de ev
 const allowedFormats = new Set(['1:1','4:5','16:9']);
 const allowedTypes = new Set(['image/jpeg','image/png','image/webp']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const MODEL = '@cf/stabilityai/stable-diffusion-xl-base-1.0';
+const MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
 const CLOUDFLARE_AI_ENDPOINT = 'https://api.cloudflare.com/client/v4/accounts';
 const scenePrompts = {
   'Festa infantil': 'a colorful and realistic children birthday party venue, balloons and tasteful decorations',
@@ -87,23 +87,19 @@ export default {
           failedStage = `model_request_${i + 1}_of_${count}`;
           const scene = scenes[i % scenes.length];
           const prompt = `Professional commercial product photograph. Keep the exact same main product from the input photo: same shape, proportions, colors, materials, details and components. Do not redesign, replace, add or remove any part of the product. Place it naturally in ${scenePrompts[scene]}. Realistic photography, coherent perspective, natural shadows, crisp product details, polished advertising composition. The product must remain the clear central subject.`;
+          const modelInput = new FormData();
+          modelInput.append('prompt', `Use the product shown in image 0 as the exact reference. Preserve its identity, silhouette, proportions, colors, materials, printed details and every component. Do not redesign, replace, add or remove product parts. Change only the surrounding environment: place the same product naturally in ${scenePrompts[scene]}. Professional commercial product photography, realistic perspective, natural contact shadows, crisp product details, polished advertising composition. The product remains the clear central subject.`);
+          modelInput.append('input_image_0', new Blob([source.bytes], { type: source.mime }), 'reference-image');
+          modelInput.append('width', String(width));
+          modelInput.append('height', String(height));
+          modelInput.append('guidance', '4');
+          modelInput.append('seed', String(Math.floor(Math.random() * 2147483647)));
           const response = await fetch(`${CLOUDFLARE_AI_ENDPOINT}/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-              'Content-Type': 'application/json'
+              'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`
             },
-            body: JSON.stringify({
-              prompt,
-              negative_prompt: 'different product, changed shape, changed colors, missing parts, extra parts, duplicated product, distorted object, text, watermark, logo, blurry, low quality',
-              image_b64: source.base64,
-              width,
-              height,
-              num_steps: 20,
-              strength: 0.28,
-              guidance: 7.5,
-              seed: Math.floor(Math.random() * 2147483647)
-            })
+            body: modelInput
           });
           if (!response.ok) {
             const detail = (await response.text()).slice(0, 1000);
