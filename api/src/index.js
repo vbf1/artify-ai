@@ -62,8 +62,13 @@ export default {
     }
     if (url.pathname === '/generate' && request.method === 'POST') {
       if (!env.AI) return json({ error: 'O serviço de IA ainda não está conectado ao Worker.' }, 503, origin);
+      const declaredLength = Number(request.headers.get('Content-Length') || 0);
+      if (declaredLength > 14 * 1024 * 1024) return json({ error: 'A solicitação ultrapassa o limite permitido.' }, 413, origin);
+      let rawBody;
+      try { rawBody = await request.text(); } catch { return json({ error: 'Não foi possível ler a solicitação.' }, 400, origin); }
+      if (new TextEncoder().encode(rawBody).byteLength > 14 * 1024 * 1024) return json({ error: 'A solicitação ultrapassa o limite permitido.' }, 413, origin);
       let body;
-      try { body = await request.json(); } catch { return json({ error: 'JSON inválido.' }, 400, origin); }
+      try { body = JSON.parse(rawBody); } catch { return json({ error: 'JSON inválido.' }, 400, origin); }
       const { count, format, scenes, image } = body || {};
       if (![3,6,9].includes(count)) return json({ error: 'Quantidade deve ser 3, 6 ou 9.' }, 400, origin);
       if (!allowedFormats.has(format)) return json({ error: 'Formato inválido.' }, 400, origin);
