@@ -73,12 +73,28 @@ export default function App() {
     try {
       const image = await fileAsDataUrl(file);
       const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-      const response = await fetch(`${base}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image, count, format, scenes: selectedScenes })
-      });
-      const data = await response.json();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8 * 60 * 1000);
+      let response;
+      try {
+        response = await fetch(`${base}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image, count, format, scenes: selectedScenes }),
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+      } catch (requestError) {
+        if (requestError?.name === 'AbortError') {
+          throw new Error('A geração ultrapassou 8 minutos e foi interrompida. A IA pode estar indisponível ou sem capacidade no momento. Tente novamente com 3 imagens.');
+        }
+        throw new Error('Não foi possível receber a resposta da IA. Verifique sua conexão e tente novamente.');
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      let data;
+      try { data = await response.json(); }
+      catch { throw new Error('A API respondeu em um formato inesperado. A geração não foi concluída; tente novamente.'); }
       if (!response.ok) throw new Error([data.error, data.detail ? `Detalhe técnico: ${data.detail}` : ''].filter(Boolean).join(' — ') || 'Não foi possível gerar as imagens.');
       if (!Array.isArray(data.images) || data.images.length !== count || data.images.some(item => !item.dataUrl?.startsWith('data:image/'))) {
         throw new Error('A IA não devolveu todas as imagens esperadas. Tente novamente.');
