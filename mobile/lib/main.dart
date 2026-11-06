@@ -38,6 +38,8 @@ class _HomePageState extends State<HomePage> {
   String _status =
       'A geração real será habilitada após configurar um provedor de imagens.';
   bool _checkingApi = false;
+  bool _generating = false;
+  List<Map<String, dynamic>> _results = [];
 
   static const _sceneOptions = [
     'Festa infantil',
@@ -74,6 +76,7 @@ class _HomePageState extends State<HomePage> {
       }
       setState(() {
         _image = picked;
+        _results = [];
         _status =
             'Foto selecionada. A geração ainda depende da configuração do provedor na API.';
       });
@@ -81,6 +84,32 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() => _status = 'Não foi possível abrir a galeria.');
       }
+    }
+  }
+
+  Future<void> _generateImages() async {
+    if (_image == null || _scenes.isEmpty || _generating) return;
+    setState(() { _generating = true; _results = []; _status = 'Enviando foto para a IA...'; });
+    try {
+      final bytes = await _image!.readAsBytes();
+      final name = _image!.name.toLowerCase();
+      final mime = name.endsWith('.png') ? 'image/png' : (name.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
+      final results = await ApiService().generate(
+        imageBytes: bytes,
+        mimeType: mime,
+        count: _count,
+        format: _format,
+        scenes: _scenes.toList(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _results = results;
+        _status = '${results.length} imagens geradas. Confira os resultados antes de publicar.';
+      });
+    } catch (error) {
+      if (mounted) setState(() => _status = error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _generating = false);
     }
   }
 
@@ -273,19 +302,38 @@ class _HomePageState extends State<HomePage> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: null,
-                          icon: const Icon(Icons.auto_awesome),
-                          label: Text('Gerar $_count imagens'),
+                          onPressed: (_image == null || _scenes.isEmpty || _generating) ? null : _generateImages,
+                          icon: _generating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome),
+                          label: Text(_generating ? 'Gerando imagens...' : 'Gerar $_count imagens'),
                         ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'A geração ainda não está ativada. Nenhum resultado fictício será exibido.',
+                        'A geração depende da publicação da API Cloudflare. Confira os resultados: a IA pode alterar detalhes do produto.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ]),
               ),
             ),
+            if (_results.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Text('Suas imagens', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ..._results.asMap().entries.map((entry) {
+                final item = entry.value;
+                final encoded = (item['dataUrl'] as String).split(',').last;
+                return Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Image.memory(base64Decode(encoded), width: double.infinity, fit: BoxFit.contain),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(item['scene'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ]),
+                );
+              }),
+            ],
             const SizedBox(height: 16),
             OutlinedButton(
               onPressed: _checkingApi ? null : _checkApi,
