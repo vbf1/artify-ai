@@ -37,7 +37,7 @@ class _HomePageState extends State<HomePage> {
   String _format = '4:5';
   final Set<String> _scenes = {'Festa infantil', 'Parque', 'Cenário clean'};
   String _status =
-      'A geração real será habilitada após configurar um provedor de imagens.';
+      'Verifique a conexão com a API para confirmar que a geração está disponível.';
   bool _checkingApi = false;
   bool _generating = false;
   List<Map<String, dynamic>> _results = [];
@@ -79,7 +79,7 @@ class _HomePageState extends State<HomePage> {
         _image = picked;
         _results = [];
         _status =
-            'Foto selecionada. A geração ainda depende da configuração do provedor na API.';
+            'Foto selecionada. Escolha as opções e gere suas imagens.';
       });
     } catch (_) {
       if (mounted) {
@@ -310,7 +310,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'A geração depende da publicação da API Cloudflare. Confira os resultados: a IA pode alterar detalhes do produto.',
+                        'A geração usa a IA na nuvem. Confira os resultados: a IA pode alterar detalhes do produto.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ]),
