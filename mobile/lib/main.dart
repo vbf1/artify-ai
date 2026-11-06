@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'config.dart';
 import 'services/api_service.dart';
 
@@ -114,6 +115,26 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _shareImage(Map<String, dynamic> item, int index) async {
+    try {
+      final dataUrl = item['dataUrl'] as String;
+      final parts = dataUrl.split(',');
+      if (parts.length != 2) throw Exception('Imagem inválida.');
+      final bytes = base64Decode(parts.last);
+      final scene = (item['scene'] as String).toLowerCase().replaceAll(' ', '-');
+      await Share.shareXFiles(
+        [XFile.fromData(bytes, mimeType: 'image/png', name: 'artify-ai-$scene-${index + 1}.png')],
+        text: 'Imagem criada com Artify AI — cenário: ${item['scene']}',
+        subject: 'Imagem publicitária Artify AI',
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível compartilhar: $error')),
+        );
+      }
+    }
+  }
   Future<void> _checkApi() async {
     setState(() => _checkingApi = true);
     try {
@@ -328,8 +349,27 @@ class _HomePageState extends State<HomePage> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Image.memory(base64Decode(encoded), width: double.infinity, fit: BoxFit.contain),
                     Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(item['scene'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item['scene'] as String,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Compartilhar imagem',
+                            onPressed: () => _shareImage(item, entry.key),
+                            icon: const Icon(Icons.share_outlined),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _shareImage(item, entry.key),
+                            icon: const Icon(Icons.download_outlined),
+                            label: const Text('Salvar / enviar'),
+                          ),
+                        ],
+                      ),
                     ),
                   ]),
                 );
