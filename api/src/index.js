@@ -2,7 +2,7 @@ const allowedScenes = new Set(['Festa infantil','Escola','Parque','Espaço de ev
 const allowedFormats = new Set(['1:1','4:5','16:9']);
 const allowedTypes = new Set(['image/jpeg','image/png','image/webp']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const MODEL = '@cf/runwayml/stable-diffusion-v1-5-img2img';
+const MODEL = '@cf/stabilityai/stable-diffusion-xl-base-1.0';
 const scenePrompts = {
   'Festa infantil': 'a colorful and realistic children birthday party venue, balloons and tasteful decorations',
   'Escola': 'a bright clean school recreation area, safe and welcoming environment',
