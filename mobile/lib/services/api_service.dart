@@ -20,6 +20,7 @@ class ApiService {
     required int count,
     required String format,
     required List<String> scenes,
+    required String customScene,
   }) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/generate');
     final decoded = img.decodeImage(imageBytes);
@@ -48,7 +49,8 @@ class ApiService {
         'image': dataUrl,
         'count': count,
         'format': format,
-        'scenes': scenes,\n        'customScene': customScene,
+        'scenes': scenes,
+        'customScene': customScene,
       }),
     ).timeout(const Duration(minutes: 8));
     final data = jsonDecode(response.body) as Map<String, dynamic>;
