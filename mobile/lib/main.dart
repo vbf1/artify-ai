@@ -364,7 +364,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Imagens em alta resolução: até 1920 × 1080 no formato paisagem. A IA pode alterar pequenos detalhes; confira antes de publicar.',
+                        'Imagens em alta resolução: ${_format == '16:9' ? '1920 × 1080' : _format == '4:5' ? '1080 × 1350' : '1440 × 1440'} px. A IA pode alterar pequenos detalhes; confira antes de publicar.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ]),
