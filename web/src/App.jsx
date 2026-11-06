@@ -46,7 +46,8 @@ export default function App() {
   async function checkApi() {
     if (!API_BASE_URL) { setStatus('API ainda não configurada. Defina VITE_API_BASE_URL para testar o backend.'); return; }
     try {
-      const response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}/health`);
+      const apiUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+      const response = await fetch(`${apiUrl}/health`);
       if (!response.ok) throw new Error('Falha na API');
       const data = await response.json();
       setStatus(data.status === 'ok' ? 'API conectada.' : 'A API respondeu, mas informou um estado inesperado.');
