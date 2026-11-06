@@ -24,9 +24,10 @@ jobs:
           cache: true
       - name: Generate Android platform files
         run: flutter create --platforms=android --org com.artifyai .
-      - name: Set app display name
+      - name: Configure app name and legacy gallery permission
         run: |
           sed -i 's/android:label="artify_ai"/android:label="Artify AI"/' android/app/src/main/AndroidManifest.xml
+          sed -i '/<application/i\    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />' android/app/src/main/AndroidManifest.xml
       - name: Install Flutter dependencies
         run: flutter pub get
       - name: Build installable APK
