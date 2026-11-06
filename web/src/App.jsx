@@ -79,7 +79,7 @@ export default function App() {
         body: JSON.stringify({ image, count, format, scenes: selectedScenes })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Não foi possível gerar as imagens.');
+      if (!response.ok) throw new Error([data.error, data.detail ? `Detalhe técnico: ${data.detail}` : ''].filter(Boolean).join(' — ') || 'Não foi possível gerar as imagens.');
       if (!Array.isArray(data.images) || data.images.length !== count || data.images.some(item => !item.dataUrl?.startsWith('data:image/'))) {
         throw new Error('A IA não devolveu todas as imagens esperadas. Tente novamente.');
       }
