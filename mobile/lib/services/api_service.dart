@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math' as math;
+import 'package:image/image.dart' as img;
 import 'package:http/http.dart' as http;
 import '../config.dart';
 
@@ -20,7 +22,25 @@ class ApiService {
     required List<String> scenes,
   }) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/generate');
-    final dataUrl = 'data:$mimeType;base64,${base64Encode(imageBytes)}';
+    final decoded = img.decodeImage(imageBytes);
+    if (decoded == null) {
+      throw Exception('Não foi possível decodificar a foto selecionada.');
+    }
+    final oriented = img.bakeOrientation(decoded);
+    final scale = math.min(
+      1.0,
+      math.min(511 / oriented.width, 511 / oriented.height),
+    );
+    final targetWidth = math.max(1, (oriented.width * scale).round());
+    final targetHeight = math.max(1, (oriented.height * scale).round());
+    final resized = img.copyResize(
+      oriented,
+      width: targetWidth,
+      height: targetHeight,
+      interpolation: img.Interpolation.linear,
+    );
+    final optimizedBytes = Uint8List.fromList(img.encodePng(resized));
+    final dataUrl = 'data:image/png;base64,${base64Encode(optimizedBytes)}';
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
