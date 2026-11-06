@@ -31,8 +31,8 @@ class ApiService {
       1.0,
       math.min(511 / oriented.width, 511 / oriented.height),
     );
-    final targetWidth = math.max(1, (oriented.width * scale).round());
-    final targetHeight = math.max(1, (oriented.height * scale).round());
+    final targetWidth = math.max(1, (oriented.width * scale).round()).toInt();
+    final targetHeight = math.max(1, (oriented.height * scale).round()).toInt();
     final resized = img.copyResize(
       oriented,
       width: targetWidth,
