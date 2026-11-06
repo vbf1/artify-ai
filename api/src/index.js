@@ -89,6 +89,7 @@ export default {
           const output = await env.AI.run(MODEL, {
             prompt,
             negative_prompt: 'different product, changed shape, changed colors, missing parts, extra parts, duplicated product, distorted object, text, watermark, logo, blurry, low quality',
+            image: Array.from(source.bytes),
             image_b64: source.base64,
             width,
             height,
