@@ -92,47 +92,65 @@ export default {
       const { width, height } = dimensions(format);
       const sceneChoices = scenes.map(name => ({ name, description: scenePrompts[name] }));
       if (customDescription) sceneChoices.push({ name: 'Personalizado', description: customDescription });
-      const images = [];
       let failedStage = 'preparing_generation';
       try {
-        for (let i = 0; i < count; i++) {
-          failedStage = `model_request_${i + 1}_of_${count}`;
-          const scene = sceneChoices[i % sceneChoices.length];
-
-          const modelInput = new FormData();
-          modelInput.append('prompt', `Use the product shown in image 0 as the exact reference. Preserve its identity, silhouette, proportions, colors, materials, printed details and every component. Do not redesign, replace, add or remove product parts. Change only the surrounding environment: ${scene.description}. Professional commercial product photography, premium art direction, realistic perspective, natural contact shadows, crisp product details, balanced composition, accurate materials, realistic lighting, high detail. The product remains the clear central subject and must be fully visible, not cropped.`);
-          modelInput.append('input_image_0', new Blob([source.bytes], { type: source.mime }), 'reference-image');
-          modelInput.append('width', String(width));
-          modelInput.append('height', String(height));
-          modelInput.append('guidance', '4');
-          modelInput.append('seed', String(Math.floor(Math.random() * 2147483647)));
-          const response = await fetch(`${CLOUDFLARE_AI_ENDPOINT}/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`
-            },
-            body: modelInput
-          });
-          if (!response.ok) {
-            const detail = (await response.text()).slice(0, 1000);
-            throw new Error(`Cloudflare AI HTTP ${response.status}: ${detail}`);
-          }
-          failedStage = `reading_model_output_${i + 1}_of_${count}`;
-          const contentType = response.headers.get('Content-Type') || '';
-          let output;
-          if (contentType.includes('application/json')) {
-            const payload = await response.json();
-            if (payload?.success === false || payload?.errors?.length) {
-              throw new Error(JSON.stringify(payload.errors || payload).slice(0, 1000));
+        async function generateOne(index) {
+          const scene = sceneChoices[index % sceneChoices.length];
+          const stage = `model_request_${index + 1}_of_${count}`;
+          try {
+            const modelInput = new FormData();
+            modelInput.append('prompt', `Use the product shown in image 0 as the exact reference. Preserve its identity, silhouette, proportions, colors, materials, printed details and every component. Do not redesign, replace, add or remove product parts. Change only the surrounding environment: ${scene.description}. Professional commercial product photography, premium art direction, realistic perspective, natural contact shadows, crisp product details, balanced composition, accurate materials, realistic lighting, high detail. The product remains the clear central subject and must be fully visible, not cropped.`);
+            modelInput.append('input_image_0', new Blob([source.bytes], { type: source.mime }), 'reference-image');
+            modelInput.append('width', String(width));
+            modelInput.append('height', String(height));
+            modelInput.append('guidance', '4');
+            modelInput.append('seed', String(Math.floor(Math.random() * 2147483647)));
+            const response = await fetch(`${CLOUDFLARE_AI_ENDPOINT}/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+              body: modelInput
+            });
+            if (!response.ok) {
+              const detail = (await response.text()).slice(0, 1000);
+              throw new Error(`Cloudflare AI HTTP ${response.status}: ${detail}`);
             }
-            const encoded = payload?.result?.image || payload?.result;
-            if (typeof encoded !== 'string') throw new Error('A API da Cloudflare não retornou bytes de imagem.');
-            output = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-          } else {
-            output = new Uint8Array(await response.arrayBuffer());
+            const contentType = response.headers.get('Content-Type') || '';
+            let output;
+            if (contentType.includes('application/json')) {
+              const payload = await response.json();
+              if (payload?.success === false || payload?.errors?.length) {
+                throw new Error(JSON.stringify(payload.errors || payload).slice(0, 1000));
+              }
+              const encoded = payload?.result?.image || payload?.result;
+              if (typeof encoded !== 'string') throw new Error('A API da Cloudflare não retornou bytes de imagem.');
+              output = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+            } else {
+              output = new Uint8Array(await response.arrayBuffer());
+            }
+            const base64 = await toBase64(output);
+            return { scene: scene.name, width, height, mime: 'image/png', dataUrl: `data:image/png;base64,${base64}` };
+          } catch (error) {
+            error.generationStage = stage;
+            throw error;
           }
-          const base64 = await toBase64(output);
-          images.push({ scene: scene.name, width, height, mime: 'image/png', dataUrl: `data:image/png;base64,${base64}` });
+        }
+
+        // Duas inferências simultâneas reduzem o tempo total sem disparar
+        // todas as 6 ou 9 solicitações de uma só vez.
+        const images = [];
+        const concurrency = 2;
+        for (let offset = 0; offset < count; offset += concurrency) {
+          const batch = Array.from(
+            { length: Math.min(concurrency, count - offset) },
+            (_, position) => generateOne(offset + position)
+          );
+          try {
+            const batchResults = await Promise.all(batch);
+            images.push(...batchResults);
+          } catch (error) {
+            failedStage = error?.generationStage || `model_request_batch_${offset + 1}`;
+            throw error;
+          }
         }
         return json({ success: true, provider: 'Cloudflare Workers AI', images }, 200, origin);
       } catch (error) {
