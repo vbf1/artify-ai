@@ -86,7 +86,7 @@ export default {
         for (let i = 0; i < count; i++) {
           failedStage = `model_request_${i + 1}_of_${count}`;
           const scene = scenes[i % scenes.length];
-          const prompt = `Professional commercial product photograph. Keep the exact same main product from the input photo: same shape, proportions, colors, materials, details and components. Do not redesign, replace, add or remove any part of the product. Place it naturally in ${scenePrompts[scene]}. Realistic photography, coherent perspective, natural shadows, crisp product details, polished advertising composition. The product must remain the clear central subject.`;
+
           const modelInput = new FormData();
           modelInput.append('prompt', `Use the product shown in image 0 as the exact reference. Preserve its identity, silhouette, proportions, colors, materials, printed details and every component. Do not redesign, replace, add or remove product parts. Change only the surrounding environment: place the same product naturally in ${scenePrompts[scene]}. Professional commercial product photography, realistic perspective, natural contact shadows, crisp product details, polished advertising composition. The product remains the clear central subject.`);
           modelInput.append('input_image_0', new Blob([source.bytes], { type: source.mime }), 'reference-image');
