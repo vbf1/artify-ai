@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'config.dart';
@@ -180,12 +181,11 @@ class _HomePageState extends State<HomePage> {
                         Column(children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image(
-                              image: ResizeImage(
-                                  FileImagePlaceholder(_image!),
-                                  width: 900),
+                            child: Image.file(
+                              File(_image!.path),
                               height: 220,
                               width: double.infinity,
+                              cacheWidth: 900,
                               fit: BoxFit.contain,
                               errorBuilder: (_, __, ___) => Container(
                                 height: 140,
