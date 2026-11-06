@@ -65,3 +65,35 @@ jobs:
           cat /tmp/invalid.json
           test "$code" = "400"
           grep -q 'Quantidade deve ser 3, 6 ou 9' /tmp/invalid.json
+
+      - name: Check malformed image rejection without consuming AI quota
+        env:
+          API_URL: https://artify-ai-api.victorbatistafp.workers.dev
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --output /tmp/malformed-image.json --write-out '%{http_code}' --request POST "$API_URL/generate" --header 'Content-Type: application/json' --data '{"count":3,"format":"4:5","scenes":["Parque"],"image":"data:image/png;base64,QUJD"}')"
+          cat /tmp/malformed-image.json
+          test "$code" = "400"
+          grep -q 'Imagem inválida' /tmp/malformed-image.json
+
+      - name: Check JSON content type enforcement without consuming AI quota
+        env:
+          API_URL: https://artify-ai-api.victorbatistafp.workers.dev
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --output /tmp/content-type.json --write-out '%{http_code}' --request POST "$API_URL/generate" --header 'Content-Type: text/plain' --data '{"count":3}')"
+          cat /tmp/content-type.json
+          test "$code" = "415"
+          grep -q 'formato JSON' /tmp/content-type.json
+
+      - name: Check untrusted origins receive no CORS permission
+        env:
+          API_URL: https://artify-ai-api.victorbatistafp.workers.dev
+        run: |
+          set -euo pipefail
+          headers="$(curl --silent --show-error --dump-header - --output /dev/null --request OPTIONS "$API_URL/generate" --header 'Origin: https://example.invalid' --header 'Access-Control-Request-Method: POST')"
+          echo "$headers"
+          if echo "$headers" | grep -qi 'access-control-allow-origin:'; then
+            echo "Unexpected CORS permission for an untrusted origin"
+            exit 1
+          fi
