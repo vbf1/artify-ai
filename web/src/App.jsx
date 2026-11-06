@@ -14,6 +14,27 @@ function fileAsDataUrl(file) {
   });
 }
 
+async function prepareImageForModel(file) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 511 / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Não foi possível preparar a foto para a IA.');
+    context.drawImage(bitmap, 0, 0, width, height);
+    const optimized = await new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Não foi possível converter a foto.')), 'image/jpeg', 0.92);
+    });
+    return fileAsDataUrl(optimized);
+  } finally {
+    bitmap.close();
+  }
+}
+
 export default function App() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
@@ -71,7 +92,7 @@ export default function App() {
     setGenerating(true); setResults([]);
     setStatus('Preparando a foto e enviando a solicitação segura para a IA...');
     try {
-      const image = await fileAsDataUrl(file);
+      const image = await prepareImageForModel(file);
       const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8 * 60 * 1000);
