@@ -1,4 +1,4 @@
-const allowedScenes = new Set(['Festa infantil','Escola','Parque','Espaço de eventos','Quintal','Evento comunitário','Área de lazer','Cenário clean']);
+const allowedScenes = new Set(['Festa infantil','Escola','Parque','Espaço de eventos','Quintal','Evento comunitário','Área de lazer','Cenário clean','Salão de festas','Buffet infantil','Brinquedoteca','Condomínio','Clube','Jardim','Evento ao ar livre','Estúdio profissional']);
 const allowedFormats = new Set(['1:1','4:5','16:9']);
 const allowedTypes = new Set(['image/jpeg','image/png','image/webp']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -12,7 +12,15 @@ const scenePrompts = {
   'Quintal': 'a spacious family backyard, daylight, garden and cheerful atmosphere',
   'Evento comunitário': 'a lively community celebration in an open outdoor space',
   'Área de lazer': 'a modern leisure area with landscaped garden and recreational space',
-  'Cenário clean': 'a premium minimal photography studio with a soft neutral background'
+  'Cenário clean': 'a premium minimal photography studio with a soft neutral background',
+  'Salão de festas': 'a beautifully decorated indoor party hall with colorful but tasteful birthday decorations',
+  'Buffet infantil': 'a premium children party buffet venue with playful decorations, tables and balloons',
+  'Brinquedoteca': 'a bright modern indoor playroom with safe colorful play furniture and soft flooring',
+  'Condomínio': 'a clean and spacious condominium party and leisure area with tasteful decorations',
+  'Clube': 'a family club leisure area with gardens, open space and a welcoming atmosphere',
+  'Jardim': 'a beautiful landscaped garden with flowers, greenery and soft natural daylight',
+  'Evento ao ar livre': 'a professionally organized outdoor celebration with tasteful event decor',
+  'Estúdio profissional': 'a premium commercial photography studio with controlled softbox lighting and elegant seamless backdrop'
 };
 const allowedOrigins = new Set(['https://vbf1.github.io','http://localhost:5173','http://127.0.0.1:5173']);
 function corsHeaders(origin) {
@@ -70,7 +78,7 @@ export default {
       if (new TextEncoder().encode(rawBody).byteLength > 14 * 1024 * 1024) return json({ error: 'A solicitação ultrapassa o limite permitido.' }, 413, origin);
       let body;
       try { body = JSON.parse(rawBody); } catch { return json({ error: 'JSON inválido.' }, 400, origin); }
-      const { count, format, scenes, image } = body || {};
+      const { count, format, scenes, customScene, image } = body || {};
       if (![3,6,9].includes(count)) return json({ error: 'Quantidade deve ser 3, 6 ou 9.' }, 400, origin);
       if (!allowedFormats.has(format)) return json({ error: 'Formato inválido.' }, 400, origin);
       if (!Array.isArray(scenes) || scenes.length < 1 || scenes.length > 8 || scenes.some(scene => !allowedScenes.has(scene))) {
@@ -120,7 +128,7 @@ export default {
             output = new Uint8Array(await response.arrayBuffer());
           }
           const base64 = await toBase64(output);
-          images.push({ scene, mime: 'image/png', dataUrl: `data:image/png;base64,${base64}` });
+          images.push({ scene: scene.name, width, height, mime: 'image/png', dataUrl: `data:image/png;base64,${base64}` });
         }
         return json({ success: true, provider: 'Cloudflare Workers AI', images }, 200, origin);
       } catch (error) {
