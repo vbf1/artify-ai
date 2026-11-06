@@ -30,3 +30,24 @@ jobs:
         working-directory: mobile
       - run: flutter analyze
         working-directory: mobile
+
+  api-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployed API health
+        env:
+          API_URL: https://artify-ai-api.victorbatistafp.workers.dev
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "$API_URL/health")"
+          echo "$response"
+          python -c 'import json,sys; d=json.loads(sys.argv[1]); assert d.get("status") == "ok", d; assert d.get("generationEnabled") is True, d; print("API e binding de IA ativos.")' "$response"
+      - name: Check browser preflight
+        env:
+          API_URL: https://artify-ai-api.victorbatistafp.workers.dev
+        run: |
+          set -euo pipefail
+          headers="$(curl --silent --show-error --dump-header - --output /dev/null --request OPTIONS "$API_URL/generate" --header 'Origin: https://vbf1.github.io' --header 'Access-Control-Request-Method: POST' --header 'Access-Control-Request-Headers: content-type')"
+          echo "$headers"
+          echo "$headers" | grep -qi 'access-control-allow-origin: https://vbf1.github.io'
+          echo "$headers" | grep -qi 'access-control-allow-methods:.*POST'
