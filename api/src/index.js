@@ -34,7 +34,7 @@ function parseDataUrl(value) {
   if (binary.length > MAX_IMAGE_BYTES) return null;
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return { mime: match[1], bytes };
+  return { mime: match[1], bytes, base64: match[2] };
 }
 function dimensions(format) {
   if (format === '4:5') return { width: 512, height: 640 };
@@ -89,7 +89,7 @@ export default {
           const output = await env.AI.run(MODEL, {
             prompt,
             negative_prompt: 'different product, changed shape, changed colors, missing parts, extra parts, duplicated product, distorted object, text, watermark, logo, blurry, low quality',
-            image: [...source.bytes],
+            image_b64: source.base64,
             width,
             height,
             num_steps: 20,
