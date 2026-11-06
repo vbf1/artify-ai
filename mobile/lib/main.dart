@@ -33,6 +33,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController _customSceneController = TextEditingController();
   XFile? _image;
   int _count = 6;
   String _format = '4:5';
@@ -52,7 +53,21 @@ class _HomePageState extends State<HomePage> {
     'Evento comunitário',
     'Área de lazer',
     'Cenário clean',
+    'Salão de festas',
+    'Buffet infantil',
+    'Brinquedoteca',
+    'Condomínio',
+    'Clube',
+    'Jardim',
+    'Evento ao ar livre',
+    'Estúdio profissional',
   ];
+
+  @override
+  void dispose() {
+    _customSceneController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage() async {
     try {
@@ -90,7 +105,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _generateImages() async {
-    if (_image == null || _scenes.isEmpty || _generating) return;
+    if (_image == null || (_scenes.isEmpty && _customSceneController.text.trim().isEmpty) || _generating) return;
     setState(() { _generating = true; _results = []; _status = 'Enviando foto para a IA...'; });
     try {
       final bytes = await _image!.readAsBytes();
@@ -102,6 +117,7 @@ class _HomePageState extends State<HomePage> {
         count: _count,
         format: _format,
         scenes: _scenes.toList(),
+        customScene: _customSceneController.text.trim(),
       );
       if (!mounted) return;
       setState(() {
@@ -320,18 +336,35 @@ class _HomePageState extends State<HomePage> {
                               }
                             }),
                           )),
+                      const SizedBox(height: 16),
+                      const Text('Seu próprio cenário', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _customSceneController,
+                        maxLength: 160,
+                        minLines: 2,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          hintText: 'Ex.: brinquedo em uma festa com tema safari e decoração verde...',
+                          helperText: 'Descreva o ambiente que deseja criar',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: const Color(0xFFFCFAFF),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
                       const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: (_image == null || _scenes.isEmpty || _generating) ? null : _generateImages,
+                          onPressed: (_image == null || (_scenes.isEmpty && _customSceneController.text.trim().isEmpty) || _generating) ? null : _generateImages,
                           icon: _generating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome),
                           label: Text(_generating ? 'Gerando imagens...' : 'Gerar $_count imagens'),
                         ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'A geração usa a IA na nuvem. Confira os resultados: a IA pode alterar detalhes do produto.',
+                        'Imagens em alta resolução: até 1920 × 1080 no formato paisagem. A IA pode alterar pequenos detalhes; confira antes de publicar.',
                         style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                     ]),
@@ -341,39 +374,95 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 18),
               Text('Suas imagens', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              ..._results.asMap().entries.map((entry) {
-                final item = entry.value;
-                final encoded = (item['dataUrl'] as String).split(',').last;
-                return Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Image.memory(base64Decode(encoded), width: double.infinity, fit: BoxFit.contain),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              item['scene'] as String,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _results.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.66,
+                ),
+                itemBuilder: (context, index) {
+                  final item = _results[index];
+                  final encoded = (item['dataUrl'] as String).split(',').last;
+                  final bytes = base64Decode(encoded);
+                  return Card(
+                    elevation: 1,
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => showDialog<void>(
+                              context: context,
+                              builder: (dialogContext) => Dialog(
+                                insetPadding: const EdgeInsets.all(14),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: IconButton(
+                                        onPressed: () => Navigator.pop(dialogContext),
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                    ),
+                                    Flexible(
+                                      child: InteractiveViewer(
+                                        minScale: 0.8,
+                                        maxScale: 4,
+                                        child: Image.memory(bytes, fit: BoxFit.contain),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Text('${item['scene']} · ${item['width']} × ${item['height']} px'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            child: Container(
+                              color: const Color(0xFFF4F0F8),
+                              alignment: Alignment.center,
+                              child: Image.memory(
+                                bytes,
+                                width: double.infinity,
+                                height: double.infinity,
+                                fit: BoxFit.contain,
+                                cacheWidth: 600,
+                              ),
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Compartilhar imagem',
-                            onPressed: () => _shareImage(item, entry.key),
-                            icon: const Icon(Icons.share_outlined),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item['scene'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              const SizedBox(height: 3),
+                              Text('${item['width']} × ${item['height']} px', style: const TextStyle(color: Colors.black54, fontSize: 10)),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Salvar ou compartilhar imagem',
+                                  onPressed: () => _shareImage(item, index),
+                                  icon: const Icon(Icons.download_outlined),
+                                ),
+                              ),
+                            ],
                           ),
-                          TextButton.icon(
-                            onPressed: () => _shareImage(item, entry.key),
-                            icon: const Icon(Icons.download_outlined),
-                            label: const Text('Salvar / enviar'),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ]),
-                );
-              }),
+                  );
+                },
+              ),
             ],
             const SizedBox(height: 16),
             OutlinedButton(
