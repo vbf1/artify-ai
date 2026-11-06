@@ -24,26 +24,35 @@ const scenePrompts = {
 };
 const allowedOrigins = new Set(['https://vbf1.github.io','http://localhost:5173','http://127.0.0.1:5173']);
 function corsHeaders(origin) {
-  const allowed = allowedOrigins.has(origin) ? origin : 'https://vbf1.github.io';
-  return {
-    'Access-Control-Allow-Origin': allowed,
+  const headers = {
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Vary': 'Origin'
   };
+  if (allowedOrigins.has(origin)) headers['Access-Control-Allow-Origin'] = origin;
+  return headers;
 }
 const json = (data, status=200, origin='') => new Response(JSON.stringify(data), {
   status,
   headers: { ...corsHeaders(origin), 'Content-Type': 'application/json; charset=utf-8' }
 });
 function parseDataUrl(value) {
-  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(value || '');
-  if (!match) return null;
-  const binary = atob(match[2]);
-  if (binary.length > MAX_IMAGE_BYTES) return null;
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return { mime: match[1], bytes, base64: match[2] };
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value || '');
+  if (!match || match[2].length % 4 !== 0) return null;
+  try {
+    const binary = atob(match[2]);
+    if (!binary.length || binary.length > MAX_IMAGE_BYTES) return null;
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const mime = match[1];
+    const isJpeg = mime === 'image/jpeg' && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    const isPng = mime === 'image/png' && bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+    const isWebp = mime === 'image/webp' && bytes.length >= 12 && String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP';
+    if (!isJpeg && !isPng && !isWebp) return null;
+    return { mime, bytes, base64: match[2] };
+  } catch {
+    return null;
+  }
 }
 function dimensions(format) {
   if (format === '4:5') return { width: 1080, height: 1350 };
@@ -71,6 +80,8 @@ export default {
     }
     if (url.pathname === '/generate' && request.method === 'POST') {
       if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) return json({ error: 'As credenciais seguras da IA ainda não foram configuradas no Worker.' }, 503, origin);
+      const contentType = request.headers.get('Content-Type') || '';
+      if (!contentType.toLowerCase().includes('application/json')) return json({ error: 'Envie a solicitação no formato JSON.' }, 415, origin);
       const declaredLength = Number(request.headers.get('Content-Length') || 0);
       if (declaredLength > 14 * 1024 * 1024) return json({ error: 'A solicitação ultrapassa o limite permitido.' }, 413, origin);
       let rawBody;
