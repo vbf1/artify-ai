@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -64,6 +65,88 @@ class _HomePageState extends State<HomePage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _restoreSavedResults();
+  }
+
+  Future<Directory> _resultsDirectory() async {
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory('${documents.path}${Platform.pathSeparator}artify_ai_results');
+    if (!await directory.exists()) await directory.create(recursive: true);
+    return directory;
+  }
+
+  Future<void> _restoreSavedResults() async {
+    try {
+      final directory = await _resultsDirectory();
+      final manifest = File('${directory.path}${Platform.pathSeparator}latest.json');
+      if (!await manifest.exists()) return;
+      final decoded = jsonDecode(await manifest.readAsString());
+      if (decoded is! List) return;
+      final restored = <Map<String, dynamic>>[];
+      for (final entry in decoded) {
+        if (entry is! Map<String, dynamic>) continue;
+        final filename = entry['file']?.toString();
+        final mime = entry['mime']?.toString() ?? 'image/png';
+        if (filename == null || filename.contains('..') || filename.contains('/') || filename.contains(r'\\')) continue;
+        final imageFile = File('${directory.path}${Platform.pathSeparator}$filename');
+        if (!await imageFile.exists()) continue;
+        final bytes = await imageFile.readAsBytes();
+        restored.add({
+          'dataUrl': 'data:$mime;base64,${base64Encode(bytes)}',
+          'scene': entry['scene']?.toString() ?? 'Cenário salvo',
+          'width': entry['width'] ?? 0,
+          'height': entry['height'] ?? 0,
+        });
+      }
+      if (mounted && restored.isNotEmpty) {
+        setState(() {
+          _results = restored;
+          _status = 'Suas imagens anteriores foram recuperadas deste dispositivo.';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _status = 'Não foi possível recuperar as imagens salvas neste dispositivo.');
+    }
+  }
+
+  Future<void> _saveResultsLocally(List<Map<String, dynamic>> results) async {
+    final directory = await _resultsDirectory();
+    final manifestEntries = <Map<String, dynamic>>[];
+    final keepFiles = <String>{'latest.json'};
+    for (var index = 0; index < results.length; index++) {
+      final item = results[index];
+      final dataUrl = item['dataUrl'] as String;
+      final separator = dataUrl.indexOf(',');
+      if (separator < 0) throw Exception('Imagem recebida em formato inválido.');
+      final header = dataUrl.substring(0, separator);
+      final mime = RegExp(r'data:(image/(?:png|jpeg|webp));base64').firstMatch(header)?.group(1);
+      if (mime == null) throw Exception('Formato de imagem não suportado para salvar.');
+      final extension = mime == 'image/jpeg' ? 'jpg' : mime == 'image/webp' ? 'webp' : 'png';
+      final filename = 'imagem-${index + 1}.$extension';
+      await File('${directory.path}${Platform.pathSeparator}$filename')
+          .writeAsBytes(base64Decode(dataUrl.substring(separator + 1)), flush: true);
+      keepFiles.add(filename);
+      manifestEntries.add({
+        'file': filename,
+        'mime': mime,
+        'scene': item['scene'],
+        'width': item['width'],
+        'height': item['height'],
+      });
+    }
+    final temporary = File('${directory.path}${Platform.pathSeparator}latest.tmp');
+    await temporary.writeAsString(jsonEncode(manifestEntries), flush: true);
+    await temporary.rename('${directory.path}${Platform.pathSeparator}latest.json');
+    await for (final entity in directory.list()) {
+      if (entity is File && !keepFiles.contains(entity.uri.pathSegments.last)) {
+        await entity.delete();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _customSceneController.dispose();
     super.dispose();
@@ -120,9 +203,18 @@ class _HomePageState extends State<HomePage> {
         customScene: _customSceneController.text.trim(),
       );
       if (!mounted) return;
+      var saved = true;
+      try {
+        await _saveResultsLocally(results);
+      } catch (_) {
+        saved = false;
+      }
+      if (!mounted) return;
       setState(() {
         _results = results;
-        _status = '${results.length} imagens geradas. Confira os resultados antes de publicar.';
+        _status = saved
+            ? '${results.length} imagens geradas e salvas neste dispositivo. Você pode fechar o app e voltar depois.'
+            : '${results.length} imagens geradas, mas não foi possível salvá-las. Compartilhe-as antes de sair.';
       });
     } catch (error) {
       if (mounted) setState(() => _status = error.toString().replaceFirst('Exception: ', ''));
