@@ -35,7 +35,7 @@ class _HomePageState extends State<HomePage> {
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _customSceneController = TextEditingController();
   XFile? _image;
-  int _count = 6;
+  int _count = 3;
   String _format = '4:5';
   final Set<String> _scenes = {'Festa infantil', 'Parque', 'Cenário clean'};
   String _status =
