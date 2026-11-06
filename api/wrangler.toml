@@ -2,5 +2,5 @@ name = "artify-ai-api"
 main = "src/index.js"
 compatibility_date = "2026-11-05"
 
-[vars]
-GENERATION_ENABLED = "false"
+[ai]
+binding = "AI"
