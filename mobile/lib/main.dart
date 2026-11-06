@@ -137,6 +137,7 @@ class _HomePageState extends State<HomePage> {
       }
     }
   }
+
   Future<void> _saveImageToGallery(Map<String, dynamic> item, int index) async {
     if (_savingImages.contains(index)) return;
     setState(() => _savingImages.add(index));
@@ -145,7 +146,10 @@ class _HomePageState extends State<HomePage> {
       final parts = dataUrl.split(',');
       if (parts.length != 2) throw Exception('Imagem inválida.');
       final bytes = base64Decode(parts.last);
-      final scene = (item['scene'] as String).toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+
+      final scene = (item['scene'] as String)
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+
     setState(() => _checkingApi = true);
     try {
       final result = await ApiService().health();
@@ -374,9 +378,19 @@ class _HomePageState extends State<HomePage> {
                             icon: const Icon(Icons.share_outlined),
                           ),
                           TextButton.icon(
-                            onPressed: _savingImages.contains(entry.key) ? null : () => _saveImageToGallery(item, entry.key),
-                            icon: _savingImages.contains(entry.key) ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_outlined),
-                            label: Text(_savingImages.contains(entry.key) ? 'Salvando...' : 'Salvar na galeria'),
+                            onPressed: _savingImages.contains(entry.key)
+                                ? null
+                                : () => _saveImageToGallery(item, entry.key),
+                            icon: _savingImages.contains(entry.key)
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.download_outlined),
+                            label: Text(_savingImages.contains(entry.key)
+                                ? 'Salvando...'
+                                : 'Salvar na galeria'),
                           ),
                         ],
                       ),
@@ -403,16 +417,33 @@ class _HomePageState extends State<HomePage> {
       );
 }
 ), '');
-      await Gal.putImageBytes(bytes, album: 'Artify AI', name: 'artify-ai-$scene-${index + 1}.png');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imagem salva na galeria · álbum Artify AI.')));
+      await Gal.putImageBytes(
+        bytes,
+        album: 'Artify AI',
+        name: 'artify-ai-$scene-${index + 1}.png',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Imagem salva na galeria · álbum Artify AI.')),
+        );
+      }
     } on GalException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não foi possível salvar: ${error.type.message}')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível salvar: ${error.type.message}')),
+        );
+      }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Falha ao salvar a imagem: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Falha ao salvar a imagem: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _savingImages.remove(index));
     }
   }
+
   Future<void> _checkApi() async {
     setState(() => _checkingApi = true);
     try {
