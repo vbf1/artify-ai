@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const scenes = ['Festa infantil', 'Escola', 'Parque', 'Espaço de eventos', 'Quintal', 'Evento comunitário', 'Área de lazer', 'Cenário clean'];
+const scenes = ['Festa infantil', 'Escola', 'Parque', 'Espaço de eventos', 'Quintal', 'Evento comunitário', 'Área de lazer', 'Cenário clean', 'Salão de festas', 'Buffet infantil', 'Brinquedoteca', 'Condomínio', 'Clube', 'Jardim', 'Evento ao ar livre', 'Estúdio profissional'];
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -40,7 +40,7 @@ export default function App() {
   const [preview, setPreview] = useState('');
   const [count, setCount] = useState(3);
   const [format, setFormat] = useState('4:5');
-  const [selectedScenes, setSelectedScenes] = useState(['Festa infantil', 'Parque', 'Cenário clean']);
+  const [selectedScenes, setSelectedScenes] = useState(['Festa infantil', 'Parque', 'Cenário clean']);\n  const [customScene, setCustomScene] = useState('');\n  const [expandedImage, setExpandedImage] = useState(null);
   const [status, setStatus] = useState('Envie uma foto para começar.');
   const [generating, setGenerating] = useState(false);
   const [results, setResults] = useState([]);
@@ -87,7 +87,7 @@ export default function App() {
   }
 
   async function generateImages() {
-    if (!file || selectedScenes.length === 0 || generating) return;
+    if (!file || (selectedScenes.length === 0 && !customScene.trim()) || generating) return;
     if (!API_BASE_URL) { setStatus('A API ainda não foi publicada. Configure o endereço do Worker antes de gerar.'); return; }
     setGenerating(true); setResults([]);
     setStatus('Preparando a foto e enviando a solicitação segura para a IA...');
@@ -101,7 +101,7 @@ export default function App() {
         response = await fetch(`${base}/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image, count, format, scenes: selectedScenes }),
+          body: JSON.stringify({ image, count, format, scenes: selectedScenes, customScene: customScene.trim() }),
           signal: controller.signal,
           cache: 'no-store'
         });
@@ -138,13 +138,13 @@ export default function App() {
       <div className="panel settings-panel"><div className="section-heading"><span className="step">02</span><div><h2>Personalize as imagens</h2><p>Escolha como deseja apresentar seu produto.</p></div></div>
         <div className="field"><label>Quantidade de imagens</label><div className="segmented">{[3,6,9].map(n => <button key={n} className={count===n?'active':''} onClick={() => setCount(n)}>{n}</button>)}</div></div>
         <div className="field"><label>Formato</label><div className="format-grid">{[['1:1','Quadrado'],['4:5','Vertical'],['16:9','Paisagem']].map(([v,l]) => <button key={v} className={format===v?'format active-format':'format'} onClick={() => setFormat(v)}><b>{v}</b><span>{l}</span></button>)}</div></div>
-        <div className="field"><label>Cenários</label><div className="scene-grid">{scenes.map(scene => <label className="check" key={scene}><input type="checkbox" checked={selectedScenes.includes(scene)} onChange={() => toggleScene(scene)} /><span>{scene}</span></label>)}</div></div>
-        <button className="generate" disabled={!file || selectedScenes.length===0 || generating} onClick={generateImages}>{generating ? 'Gerando imagens...' : `✦ Gerar ${count} imagens`}</button>
-        <p className="notice">A IA pode alterar pequenos detalhes do produto. Confira os resultados antes de publicar. A cota gratuita pode limitar as gerações.</p>
+        <div className="field"><label>Cenários ({selectedScenes.length} selecionados)</label><div className="scene-grid">{scenes.map(scene => <label className="check" key={scene}><input type="checkbox" checked={selectedScenes.includes(scene)} onChange={() => toggleScene(scene)} /><span>{scene}</span></label>)}</div></div>\n        <div className="field custom-scene-field"><label htmlFor="custom-scene">Seu próprio cenário</label><textarea id="custom-scene" rows="3" maxLength="160" placeholder="Ex.: brinquedo em uma festa no tema safari, com decoração verde e animais..." value={customScene} onChange={event => setCustomScene(event.target.value)} /><small>{customScene.length}/160 caracteres · será usado junto aos cenários selecionados</small></div>
+        <button className="generate" disabled={!file || (selectedScenes.length===0 && !customScene.trim()) || generating} onClick={generateImages}>{generating ? 'Gerando imagens...' : `✦ Gerar ${count} imagens`}</button>
+        <p className="notice">Saída em alta resolução: até 1920 × 1080 no formato paisagem. A IA pode alterar pequenos detalhes do produto; confira antes de publicar. A cota gratuita pode limitar as gerações.</p>
         <button className="api-check" onClick={checkApi}>Verificar conexão com a API</button><p className="status" role="status">{status}</p>
       </div>
     </section>
-    {results.length > 0 && <section className="results"><div className="results-heading"><h2>Suas imagens</h2><span>{results.length} resultados</span></div><div className="results-grid">{results.map((item,index) => <article className="result-card" key={index}><img src={item.dataUrl} alt={`Imagem gerada para o cenário ${item.scene}`} /><div className="result-meta"><strong>{item.scene}</strong><a href={item.dataUrl} download={`artify-ai-${index+1}.png`}>Baixar imagem</a></div></article>)}</div></section>}
+    {results.length > 0 && <section className="results"><div className="results-heading"><h2>Suas imagens</h2><span>{results.length} resultados</span></div><div className={`results-grid format-${format.replace(':','-')}`}>{results.map((item,index) => <article className="result-card" key={index}><button className="image-preview" onClick={() => setExpandedImage(item)} aria-label={`Ampliar imagem ${index+1}`}><img src={item.dataUrl} alt={`Imagem gerada para o cenário ${item.scene}`} loading="lazy" /></button><div className="result-meta"><div><strong>{item.scene}</strong><small>{item.width} × {item.height} px</small></div><a href={item.dataUrl} download={`artify-ai-${index+1}.png`}>Baixar imagem</a></div></article>)}</div></section>}\n    {expandedImage && <div className="image-lightbox" role="dialog" aria-modal="true" aria-label="Visualização ampliada" onClick={() => setExpandedImage(null)}><button className="lightbox-close" onClick={() => setExpandedImage(null)} aria-label="Fechar">×</button><div className="lightbox-content" onClick={event => event.stopPropagation()}><img src={expandedImage.dataUrl} alt={`Imagem ampliada: ${expandedImage.scene}`} /><div><strong>{expandedImage.scene}</strong><span>{expandedImage.width} × {expandedImage.height} px</span><a href={expandedImage.dataUrl} download="artify-ai-imagem.png">Baixar imagem original</a></div></div></div>}
     <footer>Artify AI · Criação visual para suas ideias</footer>
   </main>;
 }
