@@ -61,9 +61,9 @@ class _HomePageState extends State<HomePage> {
       );
       if (picked == null || !mounted) return;
       final size = await picked.length();
-      if (size > 15 * 1024 * 1024) {
+      if (size > 10 * 1024 * 1024) {
         setState(() => _status =
-            'A imagem ultrapassa 15 MB. Escolha um arquivo menor.');
+            'A imagem ultrapassa 10 MB. Escolha um arquivo menor.');
         return;
       }
       final extension = picked.name.toLowerCase();
@@ -201,7 +201,7 @@ class _HomePageState extends State<HomePage> {
                                   style:
                                       TextStyle(fontWeight: FontWeight.w600)),
                               SizedBox(height: 4),
-                              Text('JPG, PNG ou WEBP · até 15 MB',
+                              Text('JPG, PNG ou WEBP · até 10 MB',
                                   style: TextStyle(
                                       color: Colors.black54, fontSize: 12)),
                             ]),
