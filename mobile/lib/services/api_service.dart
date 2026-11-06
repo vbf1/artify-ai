@@ -33,7 +33,13 @@ class ApiService {
     ).timeout(const Duration(minutes: 8));
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode != 200) {
-      throw Exception(data['error'] ?? 'Falha ao gerar imagens.');
+      final error = data['error']?.toString();
+      final detail = data['detail']?.toString();
+      final message = [
+        if (error != null && error.isNotEmpty) error,
+        if (detail != null && detail.isNotEmpty) 'Detalhe técnico: $detail',
+      ].join(' — ');
+      throw Exception(message.isEmpty ? 'Falha ao gerar imagens.' : message);
     }
     final images = data['images'];
     if (images is! List || images.length != count) {
