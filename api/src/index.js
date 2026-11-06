@@ -3,6 +3,7 @@ const allowedFormats = new Set(['1:1','4:5','16:9']);
 const allowedTypes = new Set(['image/jpeg','image/png','image/webp']);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MODEL = '@cf/stabilityai/stable-diffusion-xl-base-1.0';
+const CLOUDFLARE_AI_ENDPOINT = 'https://api.cloudflare.com/client/v4/accounts';
 const scenePrompts = {
   'Festa infantil': 'a colorful and realistic children birthday party venue, balloons and tasteful decorations',
   'Escola': 'a bright clean school recreation area, safe and welcoming environment',
@@ -41,8 +42,8 @@ function dimensions(format) {
   if (format === '16:9') return { width: 768, height: 432 };
   return { width: 512, height: 512 };
 }
-async function toBase64(stream) {
-  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+async function toBase64(input) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(await new Response(input).arrayBuffer());
   if (!bytes.length || bytes.length < 2048) throw new Error('A IA retornou uma imagem vazia ou inválida.');
   let binary = '';
   const chunk = 0x8000;
@@ -58,10 +59,10 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers });
     const url = new URL(request.url);
     if (url.pathname === '/health' && request.method === 'GET') {
-      return json({ status: 'ok', generationEnabled: Boolean(env.AI), provider: 'Cloudflare Workers AI' }, 200, origin);
+      return json({ status: 'ok', generationEnabled: Boolean(env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN), provider: 'Cloudflare Workers AI REST API' }, 200, origin);
     }
     if (url.pathname === '/generate' && request.method === 'POST') {
-      if (!env.AI) return json({ error: 'O serviço de IA ainda não está conectado ao Worker.' }, 503, origin);
+      if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_API_TOKEN) return json({ error: 'As credenciais seguras da IA ainda não foram configuradas no Worker.' }, 503, origin);
       const declaredLength = Number(request.headers.get('Content-Length') || 0);
       if (declaredLength > 14 * 1024 * 1024) return json({ error: 'A solicitação ultrapassa o limite permitido.' }, 413, origin);
       let rawBody;
@@ -86,19 +87,42 @@ export default {
           failedStage = `model_request_${i + 1}_of_${count}`;
           const scene = scenes[i % scenes.length];
           const prompt = `Professional commercial product photograph. Keep the exact same main product from the input photo: same shape, proportions, colors, materials, details and components. Do not redesign, replace, add or remove any part of the product. Place it naturally in ${scenePrompts[scene]}. Realistic photography, coherent perspective, natural shadows, crisp product details, polished advertising composition. The product must remain the clear central subject.`;
-          const output = await env.AI.run(MODEL, {
-            prompt,
-            negative_prompt: 'different product, changed shape, changed colors, missing parts, extra parts, duplicated product, distorted object, text, watermark, logo, blurry, low quality',
-            image: Array.from(source.bytes),
-            image_b64: source.base64,
-            width,
-            height,
-            num_steps: 20,
-            strength: 0.28,
-            guidance: 7.5,
-            seed: Math.floor(Math.random() * 2147483647)
+          const response = await fetch(`${CLOUDFLARE_AI_ENDPOINT}/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${MODEL}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              prompt,
+              negative_prompt: 'different product, changed shape, changed colors, missing parts, extra parts, duplicated product, distorted object, text, watermark, logo, blurry, low quality',
+              image_b64: source.base64,
+              width,
+              height,
+              num_steps: 20,
+              strength: 0.28,
+              guidance: 7.5,
+              seed: Math.floor(Math.random() * 2147483647)
+            })
           });
+          if (!response.ok) {
+            const detail = (await response.text()).slice(0, 1000);
+            throw new Error(`Cloudflare AI HTTP ${response.status}: ${detail}`);
+          }
           failedStage = `reading_model_output_${i + 1}_of_${count}`;
+          const contentType = response.headers.get('Content-Type') || '';
+          let output;
+          if (contentType.includes('application/json')) {
+            const payload = await response.json();
+            if (payload?.success === false || payload?.errors?.length) {
+              throw new Error(JSON.stringify(payload.errors || payload).slice(0, 1000));
+            }
+            const encoded = payload?.result?.image || payload?.result;
+            if (typeof encoded !== 'string') throw new Error('A API da Cloudflare não retornou bytes de imagem.');
+            output = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          } else {
+            output = new Uint8Array(await response.arrayBuffer());
+          }
           const base64 = await toBase64(output);
           images.push({ scene, mime: 'image/png', dataUrl: `data:image/png;base64,${base64}` });
         }
